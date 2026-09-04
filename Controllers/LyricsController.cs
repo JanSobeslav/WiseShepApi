@@ -1,0 +1,176 @@
+using Microsoft.AspNetCore.Mvc;
+using JesonApi.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace JesonApi.Controllers;
+
+
+
+[ApiController]
+[Route("api/lyrics")]
+public class LyricsController : ControllerBase
+{
+
+    private readonly AppDbContext _context;
+        public LyricsController(AppDbContext context)
+    {
+        _context = context;
+    }
+    private readonly List<LyricResource> lyricsList = new List<LyricResource>
+        {
+           new LyricResource { Id = 1, Name = "10,000 Reasons", Author = "Matt Redman", Description = "This is test desc", Frames = new List<FrameResource>{new FrameResource {Id = 1, FrameType = FrameTypeEnum.verse, Translations = new()}}, BackgroundImage = "some-image-path.cz" },
+
+    new LyricResource { Id = 2, Name = "Way Maker", Author = "Sinach", Description = "Worship song about God's miracles", Frames = new(), BackgroundImage = "waymaker-bg.jpg" },
+
+    new LyricResource { Id = 3, Name = "Oceans", Author = "Hillsong UNITED", Description = "Popular worship song about faith", Frames = new(), BackgroundImage = "oceans-bg.jpg" },
+
+    new LyricResource { Id = 4, Name = "Great Are You Lord", Author = "All Sons & Daughters", Description = "Song about God's greatness", Frames = new(), BackgroundImage = "great-bg.jpg" },
+
+    new LyricResource { Id = 5, Name = "Build My Life", Author = "Pat Barrett", Description = "Song about building life on God", Frames = new(), BackgroundImage = "build-bg.jpg" },
+
+    new LyricResource { Id = 6, Name = "Reckless Love", Author = "Cory Asbury", Description = "Song about unconditional love", Frames = new(), BackgroundImage = "reckless-bg.jpg" },
+
+    new LyricResource { Id = 7, Name = "What a Beautiful Name", Author = "Hillsong Worship", Description = "Song about the name of Jesus", Frames = new(), BackgroundImage = "beautiful-bg.jpg" },
+
+    new LyricResource { Id = 8, Name = "Living Hope", Author = "Phil Wickham", Description = "Song about salvation and hope", Frames = new(), BackgroundImage = "hope-bg.jpg" }
+        };
+
+   [HttpGet]
+    public async Task<IActionResult> GetLyrics()
+    {
+        var lyrics = await _context.Lyrics
+            // .Include(l => l.Frames) // načte i frames
+            .ToListAsync();
+
+        return Ok(lyrics);
+    }
+
+
+[HttpGet("{id}")]
+public async Task<IActionResult> GetLyricsDetail(int id)
+{
+    var lyric = await _context.Lyrics
+        .AsNoTracking()          // nemusíš sledovat entity
+        .Select(l => new 
+        {
+            l.Id,
+            l.Name,
+            l.Author,
+            l.Description,
+            l.Frames,
+            l.BackgroundImage,
+            // další pole z LyricResource, ale bez Frames
+        })
+        .FirstOrDefaultAsync(l => l.Id == id);
+
+    if (lyric == null)
+        return NotFound();
+
+    return Ok(lyric);
+}
+
+[HttpPost]
+public async Task<IActionResult> CreateLyrics([FromBody] LyricResource newLyrics)
+{
+    if (newLyrics == null)
+        return BadRequest();
+
+    // Přidáme do DB
+    _context.Lyrics.Add(newLyrics);
+    await _context.SaveChangesAsync(); // INSERT + automaticky uloží i Frames díky navigaci
+
+    // Vrátíme 201 Created + URI nové položky
+    return CreatedAtAction(
+        nameof(GetLyricsDetail),
+        new { id = newLyrics.Id },
+        newLyrics
+    );
+}
+
+
+    [HttpPut("{id}")]
+    public IActionResult UpdateLyrics(int id, [FromBody] LyricResource updatedLyrics)
+    {
+        if (updatedLyrics == null)
+            return BadRequest();
+
+        var existing = lyricsList.FirstOrDefault(u => u.Id == id);
+        if (existing == null)
+            return NotFound();
+
+        // Aktualizace polí (mock, bez DB)
+        existing.Name = updatedLyrics.Name;
+        existing.Author = updatedLyrics.Author;
+        existing.Description = updatedLyrics.Description;
+        existing.Frames = updatedLyrics.Frames;
+        existing.BackgroundImage = updatedLyrics.BackgroundImage;
+
+        return Ok(existing);
+    }
+
+    [HttpDelete("{id}")]
+    public IActionResult DeleteLyrics(int id)
+    {
+        var existing = lyricsList.FirstOrDefault(u => u.Id == id);
+        if (existing == null)
+            return NotFound();
+
+        lyricsList.Remove(existing);
+        return NoContent(); // 204 = úspěšně smazáno
+    }
+
+    [HttpGet("{id}/frame")]
+    public IActionResult GetFrames(int id)
+    {
+        var lyric = lyricsList.FirstOrDefault(u => u.Id == id);
+        if (lyric == null)
+        {
+            return NotFound();
+        }
+        return Ok(lyric.Frames);
+    }
+
+     [HttpPost("{id}/frame")]
+    public IActionResult AddFrame(int id, [FromBody] FrameResource newFrame)
+    {
+        var lyric = lyricsList.FirstOrDefault(l => l.Id == id);
+        if (lyric == null) return NotFound();
+
+        // Volitelně: generuj nové Id
+        newFrame.Id = lyric.Frames.Any() ? lyric.Frames.Max(f => f.Id) + 1 : 1;
+        lyric.Frames.Add(newFrame);
+
+        // Vrátíme Created s novým objektem
+        return CreatedAtAction(nameof(GetFrames), new { id = id }, newFrame);
+    } 
+    
+    [HttpPut("{id}/frame/{frameId}")]
+    public IActionResult UpdateFrame(int id, int frameId, [FromBody] FrameResource updatedFrame)
+    {
+        var lyric = lyricsList.FirstOrDefault(l => l.Id == id);
+        if (lyric == null) return NotFound();
+
+        var frame = lyric.Frames.FirstOrDefault(f => f.Id == frameId);
+        if (frame == null) return NotFound();
+
+        // Aktualizujeme hodnoty
+        frame.FrameType = updatedFrame.FrameType;
+        frame.Translations = updatedFrame.Translations;
+
+        return NoContent(); // 204 – úspěšně aktualizováno
+    }
+
+    [HttpDelete("{id}/frame/{frameId}")]
+    public IActionResult DeleteFrame(int id, int frameId)
+    {
+        var lyric = lyricsList.FirstOrDefault(l => l.Id == id);
+        if (lyric == null) return NotFound();
+
+        var frame = lyric.Frames.FirstOrDefault(f => f.Id == frameId);
+        if (frame == null) return NotFound();
+
+        lyric.Frames.Remove(frame);
+        return NoContent(); // 204 – úspěšně smazáno
+    }
+
+}
