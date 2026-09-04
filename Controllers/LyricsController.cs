@@ -120,29 +120,31 @@ public async Task<IActionResult> CreateLyrics([FromBody] LyricResource newLyrics
     }
 
     [HttpGet("{id}/frame")]
-    public IActionResult GetFrames(int id)
-    {
-        var lyric = lyricsList.FirstOrDefault(u => u.Id == id);
-        if (lyric == null)
-        {
-            return NotFound();
-        }
-        return Ok(lyric.Frames);
-    }
+public async Task<IActionResult> GetFrames(int id)
+{
+    var lyricExists = await _context.Lyrics.AnyAsync(l => l.Id == id);
+    if (!lyricExists)
+        return NotFound();
+
+    var frames = await _context.Frames
+        .Where(f => f.LyricResourceId == id)
+        .ToListAsync();
+
+    return Ok(frames);
+}
 
      [HttpPost("{id}/frame")]
-    public IActionResult AddFrame(int id, [FromBody] FrameResource newFrame)
-    {
-        var lyric = lyricsList.FirstOrDefault(l => l.Id == id);
-        if (lyric == null) return NotFound();
+public async Task<IActionResult> AddFrame(int id, [FromBody] FrameResource newFrame)
+{
+    var lyricExists = await _context.Lyrics.AnyAsync(l => l.Id == id);
+    if (!lyricExists) return NotFound();
 
-        // Volitelně: generuj nové Id
-        newFrame.Id = lyric.Frames.Any() ? lyric.Frames.Max(f => f.Id) + 1 : 1;
-        lyric.Frames.Add(newFrame);
+    newFrame.LyricResourceId = id;
+    _context.Frames.Add(newFrame);
+    await _context.SaveChangesAsync();
 
-        // Vrátíme Created s novým objektem
-        return CreatedAtAction(nameof(GetFrames), new { id = id }, newFrame);
-    } 
+    return CreatedAtAction(nameof(GetFrames), new { id = id }, newFrame);
+}
     
     [HttpPut("{id}/frame/{frameId}")]
     public IActionResult UpdateFrame(int id, int frameId, [FromBody] FrameResource updatedFrame)
