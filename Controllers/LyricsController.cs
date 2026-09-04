@@ -89,33 +89,36 @@ public async Task<IActionResult> CreateLyrics([FromBody] LyricResource newLyrics
 
 
     [HttpPut("{id}")]
-    public IActionResult UpdateLyrics(int id, [FromBody] LyricResource updatedLyrics)
+    public async Task<IActionResult> UpdateLyrics(int id, [FromBody] LyricResource updatedLyrics)
     {
         if (updatedLyrics == null)
             return BadRequest();
 
-        var existing = lyricsList.FirstOrDefault(u => u.Id == id);
+        var existing = await _context.Lyrics.FirstOrDefaultAsync(l => l.Id == id);
         if (existing == null)
             return NotFound();
 
-        // Aktualizace polí (mock, bez DB)
+        // Aktualizace polí přímo v DB
         existing.Name = updatedLyrics.Name;
         existing.Author = updatedLyrics.Author;
         existing.Description = updatedLyrics.Description;
-        existing.Frames = updatedLyrics.Frames;
         existing.BackgroundImage = updatedLyrics.BackgroundImage;
+
+        await _context.SaveChangesAsync();
 
         return Ok(existing);
     }
 
     [HttpDelete("{id}")]
-    public IActionResult DeleteLyrics(int id)
+    public async Task<IActionResult> DeleteLyrics(int id)
     {
-        var existing = lyricsList.FirstOrDefault(u => u.Id == id);
+        var existing = await _context.Lyrics.FirstOrDefaultAsync(l => l.Id == id);
         if (existing == null)
             return NotFound();
 
-        lyricsList.Remove(existing);
+        _context.Lyrics.Remove(existing);
+        await _context.SaveChangesAsync();
+
         return NoContent(); // 204 = úspěšně smazáno
     }
 
@@ -145,33 +148,39 @@ public async Task<IActionResult> AddFrame(int id, [FromBody] FrameResource newFr
 
     return CreatedAtAction(nameof(GetFrames), new { id = id }, newFrame);
 }
-    
-    [HttpPut("{id}/frame/{frameId}")]
-    public IActionResult UpdateFrame(int id, int frameId, [FromBody] FrameResource updatedFrame)
-    {
-        var lyric = lyricsList.FirstOrDefault(l => l.Id == id);
-        if (lyric == null) return NotFound();
 
-        var frame = lyric.Frames.FirstOrDefault(f => f.Id == frameId);
+    [HttpPut("{id}/frame/{frameId}")]
+    public async Task<IActionResult> UpdateFrame(int id, int frameId, [FromBody] FrameResource updatedFrame)
+    {
+        if (updatedFrame == null)
+            return BadRequest();
+
+        var frame = await _context.Frames
+            .FirstOrDefaultAsync(f => f.Id == frameId && f.LyricResourceId == id);
+
         if (frame == null) return NotFound();
 
         // Aktualizujeme hodnoty
         frame.FrameType = updatedFrame.FrameType;
         frame.Translations = updatedFrame.Translations;
+        frame.OwnBackgroundImage = updatedFrame.OwnBackgroundImage;
+
+        await _context.SaveChangesAsync();
 
         return NoContent(); // 204 – úspěšně aktualizováno
     }
 
     [HttpDelete("{id}/frame/{frameId}")]
-    public IActionResult DeleteFrame(int id, int frameId)
+    public async Task<IActionResult> DeleteFrame(int id, int frameId)
     {
-        var lyric = lyricsList.FirstOrDefault(l => l.Id == id);
-        if (lyric == null) return NotFound();
+        var frame = await _context.Frames
+            .FirstOrDefaultAsync(f => f.Id == frameId && f.LyricResourceId == id);
 
-        var frame = lyric.Frames.FirstOrDefault(f => f.Id == frameId);
         if (frame == null) return NotFound();
 
-        lyric.Frames.Remove(frame);
+        _context.Frames.Remove(frame);
+        await _context.SaveChangesAsync();
+
         return NoContent(); // 204 – úspěšně smazáno
     }
 
